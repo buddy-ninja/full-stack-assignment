@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ninja
+      POSTGRES_PASSWORD: ninja
+      POSTGRES_DB: ninja
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ninja -d ninja"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  ai-service:
+    build: ./ai-service
+    environment:
+      LLM_PROVIDER: fake
+      KNOWLEDGE_DIR: /knowledge
+    volumes:
+      - ./knowledge:/knowledge:ro
+    ports:
+      - "8001:8001"
+
+  gateway:
+    build: ./gateway
+    environment:
+      DATABASE_URL: postgres://ninja:ninja@db:5432/ninja
+      AI_SERVICE_URL: http://ai-service:8001
+      TOKENS_FILE: /fixtures/tokens.json
+    volumes:
+      - ./fixtures:/fixtures:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
